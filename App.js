@@ -208,17 +208,17 @@ const s = StyleSheet.create({
                      marginBottom: 5, textAlign: "center",color:'red' },
 
   subtitulo:          { fontSize: 18, fontWeight: "600", color: "#1e293b",
-                     marginBottom: 20, textAlign: "center"},
+                     marginBottom: 5, textAlign: "center"},
 
   // Input
-  inputRow:        { marginBottom: 14 },
+  inputRow:        { marginBottom: 5 },
   input:           { backgroundColor: "#fff", borderWidth: 1, borderColor: "#cbd5e1",
                      borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12,
                      fontSize: 16, color: "#1e293b" },
 
   // Botones
-  botones:         { flexDirection: "row", gap: 12, marginBottom: 24 },
-  btn:             { flex: 1, backgroundColor: "#4f46e5", paddingVertical: 13,
+  botones:         { flexDirection: "row", gap: 12, marginBottom: 5 },
+  btn:             { flex: 1, backgroundColor: "#4f46e5", paddingVertical: 10,
                      borderRadius: 10, alignItems: "center" },
   btnGris:         { backgroundColor: "#64748b" },
   btnDisabled:     { backgroundColor: "#a5b4fc" },
@@ -235,7 +235,7 @@ const s = StyleSheet.create({
                      shadowRadius: 8, elevation: 3 },
 
   // FilaResultado
-  filaRes:         { borderBottomWidth: 1, borderBottomColor: "#f1f5f9", paddingBottom: 10 },
+  filaRes:         { borderBottomWidth: 1, borderBottomColor: "#f1f5f9", paddingBottom: 2 },
   filaResRow:      { flexDirection: "row", alignItems: "center",
                      justifyContent: "space-between" },
   filaLabel:       { fontSize: 11, fontWeight: "600", color: "#6366f1",

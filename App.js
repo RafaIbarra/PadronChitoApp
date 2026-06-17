@@ -9,7 +9,12 @@ import { Asset } from "expo-asset";
 import * as FileSystem from "expo-file-system/legacy";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Linking } from "react-native";
+
+let _db = null;
+
 async function getDatabase() {
+  if (_db) return _db;
+
   const dbName = "app.db";
   const sqliteDir = FileSystem.documentDirectory + "SQLite/";
   const dbPath = sqliteDir + dbName;
@@ -26,7 +31,8 @@ async function getDatabase() {
     await FileSystem.copyAsync({ from: asset.localUri, to: dbPath });
   }
 
-  return SQLite.openDatabaseSync(dbName);
+  _db = SQLite.openDatabaseSync(dbName);
+  return _db;
 }
 
 function FilaResultado({ label, valor, horizontal = false }) {
@@ -106,11 +112,6 @@ export default function App() {
     }
   }
 
-  function limpiar() {
-    setCedula("");
-    setResultado(null);
-  }
-
   const hayDatos = resultado && Object.keys(resultado).length > 0;
   const sinDatos = resultado && Object.keys(resultado).length === 0;
 
@@ -146,7 +147,7 @@ export default function App() {
             />
           </View>
 
-          {/* Botones */}
+          {/* Botón */}
           <View style={s.botones}>
             <TouchableOpacity
               style={[s.btn, !cedula.trim() && s.btnDisabled]}
@@ -154,9 +155,6 @@ export default function App() {
               disabled={cargando || !cedula.trim()}
             >
               <Text style={s.btnTxt}>Consultar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[s.btn, s.btnGris]} onPress={limpiar}>
-              <Text style={s.btnTxt}>Limpiar</Text>
             </TouchableOpacity>
           </View>
 
@@ -217,8 +215,8 @@ const s = StyleSheet.create({
                      fontSize: 16, color: "#1e293b" },
 
   // Botones
-  botones:         { flexDirection: "row", gap: 12, marginBottom: 5 },
-  btn:             { flex: 1, backgroundColor: "#4f46e5", paddingVertical: 10,
+  botones:         { alignItems: "center", marginBottom: 5 },
+  btn:             { width: "75%", backgroundColor: "#4f46e5", paddingVertical: 10,
                      borderRadius: 10, alignItems: "center" },
   btnGris:         { backgroundColor: "#64748b" },
   btnDisabled:     { backgroundColor: "#a5b4fc" },

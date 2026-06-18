@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Padron Chito",
-    "slug": "PadronAppChito",
+    "slug": "padronappchito",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -21,7 +21,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.rafael86.PadronAppChito"
+      "package": "com.jaimeesquivel.padronappchito"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -32,7 +32,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "ac98787f-5980-4d54-8037-903778584a2e"
+        "projectId": "b2154b99-5709-4b46-a2bf-94bec3803a81"
       }
     }
   }

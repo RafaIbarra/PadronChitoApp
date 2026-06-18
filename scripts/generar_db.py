@@ -9,10 +9,14 @@ os.makedirs(os.path.dirname(DB_OUTPUT), exist_ok=True)
 conn = sqlite3.connect(DB_OUTPUT)
 cur = conn.cursor()
 
-# ↓ encoding latin-1 cubre español/caracteres Windows, delimiter=";" para separador punto y coma
-with open(CSV_FILE, newline="", encoding="latin-1") as f:
+with open(CSV_FILE, newline="", encoding="utf-8-sig") as f:  # ← utf-8-sig elimina el BOM automáticamente
     reader = csv.DictReader(f, delimiter=";")
     headers = reader.fieldnames
+
+    # Limpia posibles BOM residuales en los nombres de columnas
+    headers = [h.strip().replace('\ufeff', '') for h in headers]
+    
+    print(f"Columnas limpias: {headers}")
 
     cols = ", ".join(f'"{h}" TEXT' for h in headers)
     cur.execute(f"CREATE TABLE IF NOT EXISTS datos ({cols})")
@@ -21,11 +25,10 @@ with open(CSV_FILE, newline="", encoding="latin-1") as f:
     for row in reader:
         cur.execute(
             f"INSERT INTO datos VALUES ({placeholders})",
-            [row[h] for h in headers]
+            [row[h] for h in reader.fieldnames]
         )
 
 conn.commit()
 conn.close()
 print(f"✅ Base de datos creada: {DB_OUTPUT}")
-print(f"   Columnas: {headers}")
 print(f"   Filas insertadas: {cur.rowcount}")

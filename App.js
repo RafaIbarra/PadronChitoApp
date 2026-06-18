@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, Image,
@@ -11,76 +11,42 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Linking } from "react-native";
 
 let searchTimeout = null;
+let dbInstance = null; // 🔴 Conexión global única
 
-async function getDatabase() {
+async function initDatabase() {
+  if (dbInstance) return dbInstance; // Ya inicializada
+
   const dbName = "app.db";
   const sqliteDir = FileSystem.documentDirectory + "SQLite/";
   const dbPath = sqliteDir + dbName;
 
-  // console.log("📁 Directorio SQLite:", sqliteDir);
-  // console.log("📄 Ruta base de datos:", dbPath);
-
+  // Crear directorio
   const dirInfo = await FileSystem.getInfoAsync(sqliteDir);
-  // console.log("📂 ¿Existe directorio?", dirInfo.exists);
-
   if (!dirInfo.exists) {
-    // console.log("📂 Creando directorio...");
     await FileSystem.makeDirectoryAsync(sqliteDir, { intermediates: true });
   }
 
-  const fileInfo = await FileSystem.getInfoAsync(dbPath);
-  // console.log("📄 ¿Existe DB?", fileInfo.exists);
-  // console.log("📄 Tamaño DB:", fileInfo.size || "N/A");
+  // Borrar y recopiar siempre (para datos actualizados)
+  try {
+    await FileSystem.deleteAsync(dbPath, { idempotent: true });
+  } catch (e) {}
 
-  // 🔴 FORZAR recopia: borra siempre y copia de nuevo
-  // console.log("🔄 Forzando recopia de base de datos...");
-  await FileSystem.deleteAsync(dbPath, { idempotent: true }).catch(() => {});
-  
-  // console.log("📥 Descargando asset...");
   const asset = Asset.fromModule(require("./assets/database/app.db"));
   await asset.downloadAsync();
-  // console.log("📥 Asset descargado, localUri:", asset.localUri);
+  
+  await FileSystem.copyAsync({
+    from: asset.localUri,
+    to: dbPath
+  });
 
-  // console.log("📋 Copiando a:", dbPath);
-  await FileSystem.copyAsync({ from: asset.localUri, to: dbPath });
+  // Abrir UNA SOLA VEZ
+  dbInstance = SQLite.openDatabaseSync(dbName);
+  
+  // Verificar que funciona
+  const test = dbInstance.getAllSync("SELECT COUNT(*) as total FROM datos");
+  console.log("✅ DB inicializada, filas:", test[0].total);
 
-  // Verificar después de copiar
-  const fileInfoAfter = await FileSystem.getInfoAsync(dbPath);
-  // console.log("✅ DB copiada, tamaño:", fileInfoAfter.size);
-
-  return SQLite.openDatabaseSync(dbName);
-}
-
-// 🔍 Función para verificar qué hay en la base de datos
-async function debugDatabase() {
-  try {
-    const db = await getDatabase();
-    
-    // Verificar tablas
-    const tables = db.getAllSync("SELECT name FROM sqlite_master WHERE type='table'");
-    // console.log("📊 Tablas en DB:", tables);
-
-    // Verificar columnas de tabla datos
-    const columns = db.getAllSync("PRAGMA table_info(datos)");
-    // console.log("📋 Columnas:", columns);
-
-    // Contar filas
-    const count = db.getAllSync("SELECT COUNT(*) as total FROM datos");
-    // console.log("🔢 Total filas:", count[0]?.total);
-
-    // Ver primera fila
-    const first = db.getAllSync("SELECT * FROM datos LIMIT 1");
-    // console.log("👤 Primera fila:", first);
-
-    // Verificar si la columna CI existe
-    const ciCheck = db.getAllSync("SELECT CI FROM datos LIMIT 1");
-    // console.log("✅ CI funciona:", ciCheck);
-
-    return db;
-  } catch (e) {
-    console.error("❌ Error debug:", e);
-    throw e;
-  }
+  return dbInstance;
 }
 
 function FilaResultado({ label, valor, horizontal = false }) {
@@ -141,20 +107,19 @@ export default function App() {
   const [cedula, setCedula] = useState("");
   const [resultado, setResultado] = useState(null);
   const [cargando, setCargando] = useState(false);
-  const [debugInfo, setDebugInfo] = useState("");
+  const [dbReady, setDbReady] = useState(false);
 
-  // 🔍 Debug al iniciar
-  useState(() => {
-    debugDatabase().catch(e => {
-      console.error("Error inicial:", e);
-      setDebugInfo("Error: " + e.message);
-    });
-  });
+  // 🔴 Inicializar base de datos UNA VEZ al montar
+  useEffect(() => {
+    initDatabase()
+      .then(() => setDbReady(true))
+      .catch(e => {
+        console.error("❌ Error init DB:", e);
+      });
+  }, []);
 
   const consultar = useCallback(async (valor) => {
-    // console.log("🔍 Consultando CI:", valor);
-    
-    if (!valor || !valor.trim()) {
+    if (!dbReady || !valor || !valor.trim()) {
       setResultado(null);
       return;
     }
@@ -163,37 +128,21 @@ export default function App() {
     setResultado(null);
     
     try {
-      const db = await getDatabase();
+      // Usar la conexión global, NO crear nueva
+      const rows = dbInstance.getAllSync(
+        'SELECT * FROM datos WHERE "CI" = ? LIMIT 1',
+        [valor.trim()]
+      );
       
-      // 🔍 Debug: ver qué hay en la base
-      const allRows = db.getAllSync("SELECT * FROM datos LIMIT 5");
-      // console.log("📊 Muestra de datos:", allRows);
-
-      // Consulta exacta
-      const query = 'SELECT * FROM datos WHERE "CI" = ? LIMIT 1';
-      // console.log("📝 Query:", query);
-      // console.log("📝 Parámetro:", valor.trim());
-
-      const rows = db.getAllSync(query, [valor.trim()]);
-      // console.log("📊 Resultados encontrados:", rows.length);
-      // console.log("📊 Datos:", rows);
-
-      if (rows.length > 0) {
-        setResultado(rows[0]);
-      } else {
-        // 🔍 Si no encuentra, buscar similar
-        const similar = db.getAllSync('SELECT * FROM datos WHERE "CI" LIKE ? LIMIT 3', [`%${valor.trim()}%`]);
-        // console.log("📊 Resultados similares:", similar);
-        setResultado({});
-      }
+      console.log("🔍 Resultados:", rows.length);
+      setResultado(rows.length > 0 ? rows[0] : {});
     } catch (e) {
-      console.error("❌ Error en consulta:", e);
-      setDebugInfo("Error: " + e.message);
+      console.error("❌ Error consulta:", e);
       setResultado({});
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [dbReady]);
 
   function handleChangeText(texto) {
     setCedula(texto);
@@ -224,7 +173,6 @@ export default function App() {
     <SafeAreaProvider>
       <SafeAreaView style={s.container} edges={["top", "bottom"]}>
 
-        {/* Header */}
         <View style={s.header}>
           <Image
             source={require("./assets/logo.jpeg")}
@@ -233,19 +181,10 @@ export default function App() {
           />
         </View>
 
-        {/* Body */}
         <View style={s.body}>
           <Text style={s.titulo}>CONSULTA PADRÓN</Text>
           <Text style={s.subtitulo}>Elecciones Municipales del 4 de octubre del 2026</Text>
 
-          {/* Debug info */}
-          {debugInfo ? (
-            <View style={s.debugBox}>
-              <Text style={s.debugText}>{debugInfo}</Text>
-            </View>
-          ) : null}
-
-          {/* Input */}
           <View style={s.inputRow}>
             <TextInput
               style={s.input}
@@ -258,14 +197,15 @@ export default function App() {
             />
           </View>
 
-          {/* Botón Consultar */}
           <View style={s.botones}>
             <TouchableOpacity
-              style={[s.btn, !cedula.trim() && s.btnDisabled]}
+              style={[s.btn, (!cedula.trim() || !dbReady) && s.btnDisabled]}
               onPress={handleBuscar}
-              disabled={cargando || !cedula.trim()}
+              disabled={cargando || !cedula.trim() || !dbReady}
             >
-              <Text style={s.btnTxt}>Consultar</Text>
+              <Text style={s.btnTxt}>
+                {dbReady ? "Consultar" : "Cargando..."}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -273,7 +213,6 @@ export default function App() {
             <ActivityIndicator size="large" color="#4f46e5" style={{ marginTop: 32 }} />
           )}
 
-          {/* Resultados */}
           <ScrollView
             style={s.scroll}
             contentContainerStyle={s.scrollContent}
@@ -355,8 +294,4 @@ const s = StyleSheet.create({
   btnMapa: { backgroundColor: "#4f46e5", paddingVertical: 10,
              borderRadius: 10, alignItems: "center", marginTop: 5 },
   btnMapaTxt: { color: "#fff", fontWeight: "600", fontSize: 15 },
-
-  // Debug
-  debugBox: { backgroundColor: "#fee2e2", borderRadius: 8, padding: 10, marginBottom: 10 },
-  debugText: { color: "#991b1b", fontSize: 12 },
 });
